@@ -1,0 +1,176 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:image_picker/image_picker.dart';
+
+class CardScanner extends StatefulWidget {
+  CardScanner({Key? key}) : super(key: key);
+
+  @override
+  State<CardScanner> createState() => _CardScannerState();
+}
+
+class _CardScannerState extends State<CardScanner> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController numberController = TextEditingController();
+  final TextEditingController addressController = TextEditingController();
+
+  Size? size;
+  bool textScanning = false;
+  XFile? imageFile;
+  String scannedText = "";
+
+  getImage(ImageSource source) async {
+    try {
+      final pickedImage = await ImagePicker().pickImage(source: source);
+      if (pickedImage != null) {
+        textScanning = true;
+       // imageFile = pickedImage;
+        setState(() {
+          imageFile = pickedImage;
+        });
+        getRecognisedText(pickedImage);
+      }
+    } catch (e) {
+      textScanning = false;
+      imageFile = null;
+      scannedText = "Error occured while scanning";
+      setState(() {});
+    }
+  }
+
+  void getRecognisedText(XFile image) async {
+    final inputImage = InputImage.fromFilePath(image.path);
+    final textRecognizer = GoogleMlKit.vision.textRecognizer();
+    RecognizedText recognisedText = await textRecognizer.processImage(inputImage);
+    await textRecognizer.close();
+    scannedText = "";
+    for (TextBlock block in recognisedText.blocks) {
+      for (TextLine line in block.lines) {
+        scannedText = scannedText + line.text + "\n";
+
+        final namePattern = RegExp(r'([A-Za-z]+\s){1,2}[A-Za-z]+');
+        final nameMatch = namePattern.firstMatch(scannedText);
+        if (nameMatch != null) {
+          nameController.text = nameMatch.group(0)!;
+        }
+
+
+        final phonePattern = RegExp(r'(\d{3})\D*(\d{3})\D*(\d{4})');
+        final phoneMatch = phonePattern.firstMatch(scannedText);
+        if (phoneMatch != null) {
+          numberController.text = '${phoneMatch.group(1)}${phoneMatch.group(2)}${phoneMatch.group(3)}';
+        }
+
+
+        final addressPattern = RegExp(r'[A-Za-z0-9\s]+,\s[A-Za-z]{2}\s\d{5}');
+        final addressMatch = addressPattern.firstMatch(scannedText);
+        if (addressMatch != null) {
+          addressController.text = addressMatch.group(0)!;
+        }
+
+      }
+    }
+    textScanning = false;
+    textRecognizer.close();
+   // setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+  }
+  @override
+  Widget build(BuildContext context) {
+    size = MediaQuery
+        .of(context)
+        .size;
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: Text('Scanner App'),
+      ),
+      body: SingleChildScrollView(
+        child: Container(
+            margin: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (textScanning) const CircularProgressIndicator(),
+                if (!textScanning && imageFile == null)
+                // ? Image.file(imageFile!)
+                // : Text('No image selected.'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          getImage(ImageSource.camera);
+                        },
+                        icon: Icon(Icons.camera,
+                          color: Colors.blue,size: 50,),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          getImage(ImageSource.gallery);
+                        },
+                        icon: Icon(Icons.image,
+                          color: Colors.blue,size: 50,),
+                      ),
+                    ],
+                  ),
+
+                const SizedBox(
+                  height: 30,
+                ),
+                if (imageFile != null) Image.file(File(imageFile!.path)),
+                SizedBox(height: 30,),
+                Container(
+                  child: Text(
+                    scannedText,
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ),
+                SizedBox(height: 20),
+                SizedBox(
+                  height: 60,
+                  width: 340,
+                  child: TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+                SizedBox(
+                  height: 60,
+                  width: 340,
+                  child: TextField(
+                    controller: numberController,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+                SizedBox(
+                  height: 160,
+                  width: 340,
+                  child: TextField(
+                    controller:addressController,
+                    decoration: InputDecoration(
+                      labelText: 'Address',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            )),
+      ),
+    );
+  }
+}
+
